@@ -27,6 +27,12 @@ let test_enoent () =
     | `Error _ -> return () in
     Lwt_main.run t
 
+let fmt_error () = function
+  | `Unknown msg -> msg
+  | `Unimplemented -> "operation not yet implemented in the code"
+  | `Is_read_only  -> "you cannot write to a read/only instance"
+  | `Disconnected  -> "the device has been previously disconnected"
+
 let test_open_read () =
   let t =
     let name = find_unused_file () in
@@ -41,10 +47,10 @@ let test_open_read () =
     Block.really_write fd sector >>= fun () ->
     let sector' = alloc 512 in
     Block.connect name >>= function
-    | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" name)
+    | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" name fmt_error err)
     | `Ok device ->
       Block.read device Int64.(sub (div size 512L) 1L) [ sector' ] >>= function
-      | `Error _ -> failwith (Printf.sprintf "Block.read %s failed" name)
+      | `Error err -> failwith (Printf.sprintf "Block.read %s failed: %a" name fmt_error err)
       | `Ok () -> begin
         assert_equal ~printer:Cstruct.to_string ~cmp:cstruct_equal sector sector';
         return ()
@@ -56,7 +62,7 @@ let test_open_block () =
     with_temp_file
       (fun file ->
         Block.connect file >>= function
-        | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" file)
+        | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" file fmt_error err)
         | `Ok device1 ->
           Block.get_info device1
           >>= fun info1 ->
@@ -64,7 +70,7 @@ let test_open_block () =
           with_temp_volume file
             (fun volume ->
                Block.connect volume >>= function
-               | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" volume)
+               | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" volume fmt_error err)
                | `Ok device2 ->
                   Block.get_info device2
                   >>= fun info2 ->
@@ -91,7 +97,7 @@ let test_eof () =
     let sector' = alloc 512 in
     let sector'' = alloc 1024 in
     Block.connect name >>= function
-    | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" name)
+    | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" name fmt_error err)
     | `Ok device ->
       Block.write device 2046L [ sector'; sector'' ] >>= function
       | `Ok _ -> failwith (Printf.sprintf "Block.write %s should have failed" name)
@@ -110,14 +116,14 @@ let test_resize () =
     >>= fun () ->
     Block.connect name
     >>= function
-    | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" name)
+    | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" name fmt_error err)
     | `Ok device ->
       Block.get_info device
       >>= fun info1 ->
       assert_equal ~printer:Int64.to_string 0L info1.Block.size_sectors;
       Block.resize device 1L
       >>= function
-      | `Error _ -> failwith (Printf.sprintf "Block.resize %s failed" name)
+      | `Error err -> failwith (Printf.sprintf "Block.resize %s failed: %a" name fmt_error err)
       | `Ok () ->
         Block.get_info device
         >>= fun info2 ->
@@ -130,10 +136,10 @@ let test_flush () =
     with_temp_file
       (fun file ->
         Block.connect file >>= function
-        | `Error _ -> failwith (Printf.sprintf "Block.connect %s failed" file)
+        | `Error err -> failwith (Printf.sprintf "Block.connect %s failed: %a" file fmt_error err)
         | `Ok device1 ->
           Block.flush device1 >>= function
-           | `Error _ -> failwith (Printf.sprintf "Block.flush %s failed" file)
+           | `Error err -> failwith (Printf.sprintf "Block.flush %s failed: %a" file fmt_error err)
            | `Ok () ->
             Block.disconnect device1
       ) in
