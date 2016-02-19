@@ -12,7 +12,6 @@ build: [
 build-test: [
   ["ocaml" "setup.ml" "-configure" "--enable-tests"]
   ["ocaml" "setup.ml" "-build"]
-  ["ocaml" "setup.ml" "-test"]
 ]
 install: ["ocaml" "setup.ml" "-install"]
 remove:  ["ocamlfind" "remove" "mirage-block-unix"]
