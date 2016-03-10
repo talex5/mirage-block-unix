@@ -42,6 +42,7 @@ type error = [
   | `Unimplemented
   | `Is_read_only
   | `Disconnected
+  | `Connect of string * exn
 ]
 
 type info = {
@@ -56,6 +57,13 @@ type t = {
   name: string;
   mutable info: info;
 }
+
+let pp_error f = function
+  | `Unknown m          -> Format.fprintf f "block-unix: %s" m
+  | `Unimplemented      -> Format.fprintf f "block-unix: unimplemented"
+  | `Is_read_only       -> Format.fprintf f "block-unix: read only"
+  | `Disconnected       -> Format.fprintf f "block-unix: disconnected"
+  | `Connect (path, ex) -> Format.fprintf f "block-unix: connecting %S:@ %s" path (Printexc.to_string ex)
 
 let id { name } = name
 
@@ -120,7 +128,7 @@ let connect name =
       let m = Lwt_mutex.create () in
       return (`Ok { fd = Some fd; m; name; info = { sector_size; size_sectors; read_write } })
   with e ->
-    return (`Error (`Unknown (Printf.sprintf "connect %s: failed to oppen file" name)))
+    return (`Error (`Connect (name, e)))
 
 let disconnect t = match t.fd with
   | Some fd ->
